@@ -405,7 +405,7 @@ export default function App() {
           <div>
             <h1>
               <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
-              Banco de Dados - Diogo Nobre Advogados
+              DNADV - Banco de dados
             </h1>
             <p>Motor inteligente de busca de CPFs por abreviações e tolerância a erros</p>
           </div>
