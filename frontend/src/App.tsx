@@ -17,7 +17,7 @@ import {
   FileDown
 } from 'lucide-react';
 
-const API_BASE = 'https://dnadv-omnicadastro.onrender.com';
+const API_BASE = 'https://dnadv-omnicadastro.onrender.com/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'bulk' | 'db'>('search');
