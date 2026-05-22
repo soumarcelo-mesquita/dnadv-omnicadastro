@@ -330,7 +330,7 @@ export default function App() {
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontSize: '1.85rem', fontWeight: 800, marginBottom: '0.5rem', fontFamily: 'var(--font-title)' }}>
               <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
-              ADVBox DB
+              Diogo Nobre Advogados
             </h1>
             <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Entre com suas credenciais do Supabase</p>
           </div>
@@ -405,7 +405,7 @@ export default function App() {
           <div>
             <h1>
               <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
-              ADVBox Enrichment DB
+              Banco de Dados - Diogo Nobre Advogados
             </h1>
             <p>Motor inteligente de busca de CPFs por abreviações e tolerância a erros</p>
           </div>
@@ -463,7 +463,7 @@ export default function App() {
               <input 
                 type="text" 
                 className="search-input"
-                placeholder="Busque por variações ou abreviações... Ex: Marcelo M dos Santos" 
+                placeholder="Busque por variações ou abreviações... Ex: Manoel F da Silva" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 id="search-input-field"
@@ -634,9 +634,9 @@ export default function App() {
                   Digite qualquer combinação de primeiro nome, iniciais do meio e sobrenome para buscar instantaneamente na base de quase 600 mil registros do Supabase.
                 </p>
                 <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button onClick={() => setSearchQuery('Marcelo M dos Santos')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Marcelo M dos Santos</button>
-                  <button onClick={() => setSearchQuery('Marcelo Mesquita')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Marcelo Mesquita</button>
-                  <button onClick={() => setSearchQuery('Marcello Santos')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Marcello Santos (Typo)</button>
+                  <button onClick={() => setSearchQuery('Manoel Ferreira da Silva')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Manoel Ferreira da Silva</button>
+                  <button onClick={() => setSearchQuery('Manoel F da Silva')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Manoel F da Silva</button>
+                  <button onClick={() => setSearchQuery('Manuel Ferreira')} className="btn-secondary" style={{ fontSize: '0.8rem' }}>Exemplo: Manuel Ferreira (Typo)</button>
                 </div>
               </div>
             )}
@@ -658,7 +658,7 @@ export default function App() {
                   <textarea 
                     className="text-input-premium"
                     style={{ width: '100%', height: '350px', resize: 'none', fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: '1.4' }}
-                    placeholder="Cole os nomes aqui, ex:&#10;Marcelo M dos Santos&#10;Marcelo Santos&#10;Maria M Santos&#10;Ana S Silva"
+                    placeholder="Cole os nomes aqui, ex:&#10;Manoel Ferreira da Silva&#10;Manoel F da Silva&#10;Maria M Santos&#10;Ana S Silva"
                     value={bulkNames}
                     onChange={(e) => setBulkNames(e.target.value)}
                     disabled={isEnriching}
@@ -929,7 +929,7 @@ export default function App() {
 
       {/* Footer */}
       <footer>
-        <p>© 2026 ADVBox Data Enrichment Engine • Desenvolvido com React + Supabase Postgres + Render</p>
+        <p>© 2026 Diogo Nobre Advogados • Sistema de Enriquecimento de Dados</p>
       </footer>
     </div>
   );

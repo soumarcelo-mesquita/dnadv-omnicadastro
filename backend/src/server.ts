@@ -13,7 +13,7 @@ const port = process.env.PORT || 5000;
 app.use(cors({
   origin: '*', // In production, replace with your specific Vercel URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Express built-in body parsers
