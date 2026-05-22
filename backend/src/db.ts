@@ -1,7 +1,17 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder-url.supabase.co';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'placeholder';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.warn("WARNING: SUPABASE_URL or SUPABASE_ANON_KEY variables are not set. Supabase Auth validation will fail.");
+}
 
 const connectionString = process.env.DATABASE_URL;
 

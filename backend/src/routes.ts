@@ -1,10 +1,37 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import csvParser from 'csv-parser';
-import { pool } from './db';
+import { pool, supabase } from './db';
 import { normalizeName, getTokens, matchTokens, buildFtsQuery } from './matcher';
 
 export const router = Router();
+
+/**
+ * Authentication Middleware using Supabase Auth
+ */
+export async function requireAuth(req: Request, res: Response, next: any) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acesso não autorizado. Token ausente.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    }
+
+    // Attach user profile to request
+    (req as any).user = user;
+    next();
+  } catch (err: any) {
+    console.error('[Auth Middleware Error]', err);
+    return res.status(500).json({ error: 'Erro interno de autenticação.' });
+  }
+}
 
 // Interfaces
 interface PersonRow {
@@ -13,7 +40,7 @@ interface PersonRow {
 }
 
 /**
- * Health check endpoint
+ * Health check endpoint (PUBLIC for Render service checks)
  */
 router.get('/health', async (req: Request, res: Response) => {
   try {
@@ -23,6 +50,9 @@ router.get('/health', async (req: Request, res: Response) => {
     res.status(500).json({ status: 'error', db: 'disconnected', error: error.message });
   }
 });
+
+// Protect all subsequent routes with Supabase Authentication
+router.use(requireAuth);
 
 /**
  * Database Stats endpoint

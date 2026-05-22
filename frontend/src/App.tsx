@@ -16,11 +16,30 @@ import {
   CheckCircle2,
   FileDown
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://dnadv-omnicadastro.onrender.com/api';
 
+// Initialize Supabase Client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Fallback to placeholder to prevent boot crashes before env vars are populated
+const finalSupabaseUrl = supabaseUrl || 'https://placeholder-url.supabase.co';
+const finalSupabaseAnonKey = supabaseAnonKey || 'placeholder';
+
+const supabase = createClient(finalSupabaseUrl, finalSupabaseAnonKey);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'bulk' | 'db'>('search');
+  
+  // Auth state
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,15 +59,46 @@ export default function App() {
   const [localCsvPath, setLocalCsvPath] = useState('');
   const [importStatus, setImportStatus] = useState<{ loading: boolean; success?: boolean; message?: string; time?: string; count?: number }>({ loading: false });
 
-  // Load stats on mount
+  // Listen to Auth Session on mount
   useEffect(() => {
-    fetchStats();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+      if (session) {
+        fetchStats(session.access_token);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setAuthLoading(false);
+      if (session) {
+        fetchStats(session.access_token);
+      } else {
+        setDbStats({ totalRecords: 0, samples: [] });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = async (tokenOverride?: string) => {
+    const token = tokenOverride || session?.access_token;
+    if (!token) return;
+
     setIsRefreshingStats(true);
     try {
-      const res = await fetch(`${API_BASE}/stats`);
+      const res = await fetch(`${API_BASE}/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.status === 401) {
+        supabase.auth.signOut();
+        return;
+      }
       const data = await res.json();
       setDbStats(data);
     } catch (err) {
@@ -61,12 +111,20 @@ export default function App() {
   // Perform Unit Search
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim() || !session?.access_token) return;
 
     setIsSearching(true);
     setSearchResult(null);
     try {
-      const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(searchQuery)}`);
+      const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (res.status === 401) {
+        supabase.auth.signOut();
+        return;
+      }
       const data = await res.json();
       setSearchResult(data);
     } catch (err) {
@@ -83,16 +141,23 @@ export default function App() {
       .map(name => name.trim())
       .filter(name => name.length > 0);
 
-    if (namesArray.length === 0) return;
+    if (namesArray.length === 0 || !session?.access_token) return;
 
     setIsEnriching(true);
     setBulkResults([]);
     try {
       const res = await fetch(`${API_BASE}/enrich`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ names: namesArray })
       });
+      if (res.status === 401) {
+        supabase.auth.signOut();
+        return;
+      }
       const data = await res.json();
       setBulkResults(data.results);
 
@@ -114,15 +179,22 @@ export default function App() {
   // Trigger local CSV bulk import
   const handleLocalCsvImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!localCsvPath.trim()) return;
+    if (!localCsvPath.trim() || !session?.access_token) return;
 
     setImportStatus({ loading: true });
     try {
       const res = await fetch(`${API_BASE}/pessoas/import-local`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ filePath: localCsvPath })
       });
+      if (res.status === 401) {
+        supabase.auth.signOut();
+        return;
+      }
       const data = await res.json();
       
       if (res.ok && data.success) {
@@ -152,18 +224,54 @@ export default function App() {
 
   // Truncate DB Table
   const handleClearDb = async () => {
+    if (!session?.access_token) return;
     if (!window.confirm("ATENÇÃO: Isso irá deletar TODOS os registros de nomes e CPFs do banco de dados. Tem certeza?")) {
       return;
     }
 
     try {
-      const res = await fetch(`${API_BASE}/pessoas/clear`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/pessoas/clear`, { 
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (res.status === 401) {
+        supabase.auth.signOut();
+        return;
+      }
       if (res.ok) {
         alert("Banco de dados esvaziado com sucesso!");
         fetchStats();
       }
     } catch (err) {
       console.error("Error clearing DB:", err);
+    }
+  };
+
+  // Handle Sign In with Supabase Auth
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) return;
+
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim()
+      });
+
+      if (error) {
+        setAuthError(error.message === 'Invalid login credentials' 
+          ? 'Credenciais inválidas. Verifique seu e-mail e senha.' 
+          : error.message
+        );
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Falha ao conectar com o servidor de autenticação.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -199,6 +307,90 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'hsl(var(--bg-main))', color: '#fff', fontFamily: 'var(--font-body)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <RefreshCw className="animate-spin" size={48} style={{ color: 'hsl(var(--primary))', marginBottom: '1rem' }} />
+          <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.95rem' }}>Carregando credenciais...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="app-container" style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+        <div className="glow-container">
+          <div className="glow-circle glow-1"></div>
+          <div className="glow-circle glow-2"></div>
+        </div>
+
+        <div className="main-card login-card" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', backdropFilter: 'blur(20px)', border: '1px solid hsl(var(--border-color))' }}>
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontSize: '1.85rem', fontWeight: 800, marginBottom: '0.5rem', fontFamily: 'var(--font-title)' }}>
+              <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
+              ADVBox DB
+            </h1>
+            <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Entre com suas credenciais do Supabase</p>
+          </div>
+
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label htmlFor="email" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'hsl(var(--text-secondary))' }}>E-mail</label>
+              <input 
+                type="email" 
+                id="email" 
+                className="text-input-premium" 
+                placeholder="seu@email.com" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoggingIn}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'hsl(var(--text-secondary))' }}>Senha</label>
+              <input 
+                type="password" 
+                id="password" 
+                className="text-input-premium" 
+                placeholder="••••••••" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoggingIn}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {authError && (
+              <div className="alert-banner" style={{ background: 'hsl(var(--danger) / 10%)', borderColor: 'hsl(var(--danger) / 30%)', color: 'hsl(var(--danger))', margin: 0, padding: '0.75rem 1rem', fontSize: '0.85rem' }}>
+                <AlertTriangle size={16} />
+                <div>{authError}</div>
+              </div>
+            )}
+
+            <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.85rem', marginTop: '0.5rem' }} disabled={isLoggingIn}>
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw className="animate-spin" size={16} />
+                  Entrando...
+                </>
+              ) : 'Acessar Sistema'}
+            </button>
+          </form>
+
+          <footer style={{ textAlign: 'center', fontSize: '0.75rem', color: 'hsl(var(--text-muted))', borderTop: '1px solid hsl(var(--border-color))', paddingTop: '1rem', marginTop: '0.5rem' }}>
+            Protegido por Supabase Auth
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Glow circles behind elements */}
@@ -209,12 +401,27 @@ export default function App() {
 
       {/* Header */}
       <header>
-        <div className="logo-section">
-          <h1>
-            <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
-            ADVBox Enrichment DB
-          </h1>
-          <p>Motor inteligente de busca de CPFs por abreviações e tolerância a erros</p>
+        <div className="logo-section" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          <div>
+            <h1>
+              <Sparkles size={28} style={{ color: 'hsl(var(--primary))' }} />
+              ADVBox Enrichment DB
+            </h1>
+            <p>Motor inteligente de busca de CPFs por abreviações e tolerância a erros</p>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', textAlign: 'right' }}>
+            <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))' }}>
+              Acesso: <strong>{session.user.email}</strong>
+            </span>
+            <button 
+              onClick={() => supabase.auth.signOut()} 
+              className="btn-secondary" 
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', borderColor: 'hsl(var(--danger) / 30%)', color: 'hsl(var(--danger))' }}
+            >
+              Sair
+            </button>
+          </div>
         </div>
 
         {/* Tab Controls */}
@@ -571,7 +778,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button onClick={fetchStats} className="btn-secondary" disabled={isRefreshingStats}>
+                <button onClick={() => fetchStats()} className="btn-secondary" disabled={isRefreshingStats}>
                   <RefreshCw className={isRefreshingStats ? 'animate-spin' : ''} size={16} />
                   Atualizar Contadores
                 </button>
